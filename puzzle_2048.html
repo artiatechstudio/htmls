@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2048 Flow</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap');
+
+        :root {
+            --bg-color: #faf8ef;
+            --grid-color: #bbada0;
+            --empty-cell: #cdc1b4;
+            --text-dark: #776e65;
+            --text-light: #f9f6f2;
+        }
+
+        body {
+            margin: 0;
+            background-color: var(--bg-color);
+            color: var(--text-dark);
+            font-family: 'Nunito', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 500px;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            font-size: 80px;
+            font-weight: 900;
+            margin: 0;
+            line-height: 0.8;
+        }
+
+        .score-box {
+            background: var(--grid-color);
+            padding: 10px 25px;
+            border-radius: 6px;
+            color: white;
+            text-align: center;
+            font-weight: 700;
+        }
+
+        .score-label {
+            display: block;
+            text-transform: uppercase;
+            font-size: 13px;
+            color: #eee4da;
+        }
+
+        .score-val {
+            font-size: 25px;
+        }
+
+        .game-container {
+            position: relative;
+            background: var(--grid-color);
+            padding: 15px;
+            border-radius: 6px;
+            width: 500px;
+            height: 500px;
+            box-sizing: border-box;
+            touch-action: none; 
+        }
+
+        .grid-cell-container {
+            position: absolute;
+            z-index: 1;
+        }
+
+        .grid-row {
+            display: flex;
+            margin-bottom: 15px;
+        }
+        .grid-row:last-child { margin-bottom: 0; }
+
+        .cell-bg {
+            width: 106.25px;
+            height: 106.25px;
+            margin-right: 15px;
+            background: rgba(238, 228, 218, 0.35);
+            border-radius: 3px;
+        }
+        .cell-bg:last-child { margin-right: 0; }
+
+        .tile-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 2;
+        }
+
+        .tile {
+            position: absolute;
+            width: 106.25px;
+            height: 106.25px;
+            border-radius: 3px;
+            background: #eee4da;
+            color: var(--text-dark);
+            font-size: 55px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 150ms ease-in-out;
+            animation: appear 200ms ease;
+        }
+
+        @keyframes appear {
+            0% { opacity: 0; transform: scale(0); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        .tile-new { animation: appear 200ms ease; }
+        .tile-merged { animation: pop 200ms ease; z-index: 20; }
+
+        /* Tile colors */
+        .tile-2 { background: #eee4da; }
+        .tile-4 { background: #ede0c8; }
+        .tile-8 { background: #f2b179; color: #f9f6f2; }
+        .tile-16 { background: #f59563; color: #f9f6f2; }
+        .tile-32 { background: #f67c5f; color: #f9f6f2; }
+        .tile-64 { background: #f65e3b; color: #f9f6f2; }
+        .tile-128 { background: #edcf72; color: #f9f6f2; font-size: 45px; }
+        .tile-256 { background: #edcc61; color: #f9f6f2; font-size: 45px; }
+        .tile-512 { background: #edc850; color: #f9f6f2; font-size: 45px; }
+        .tile-1024 { background: #edc53f; color: #f9f6f2; font-size: 35px; }
+        .tile-2048 { background: #edc22e; color: #f9f6f2; font-size: 35px; box-shadow: 0 0 30px rgba(243, 215, 116, 0.5); }
+
+        .game-over {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(238, 228, 218, 0.73);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            display: none;
+        }
+
+        .game-over h2 {
+            font-size: 60px;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+
+        button.restart-btn {
+            background: #8f7a66;
+            color: #f9f6f2;
+            border: none;
+            padding: 10px 20px;
+            font-size: 18px;
+            font-weight: 700;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        .instructions {
+            margin-top: 2rem;
+            color: #776e65;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>2048</h1>
+        <div class="score-box">
+            <span class="score-label">Score</span>
+            <span class="score-val" id="score">0</span>
+        </div>
+    </div>
+
+    <div class="game-container">
+        <div class="game-over" id="gameOver">
+            <h2>Game Over!</h2>
+            <button class="restart-btn" onclick="setup()">Try Again</button>
+        </div>
+
+        <div class="grid-cell-container">
+            <div class="grid-row"><div class="cell-bg"></div><div class="cell-bg"></div><div class="cell-bg"></div><div class="cell-bg"></div></div>
+            <div class="grid-row"><div class="cell-bg"></div><div class="cell-bg"></div><div class="cell-bg"></div><div class="cell-bg"></div></div>
+            <div class="grid-row"><div class="cell-bg"></div><div class="cell-bg"></div><div class="cell-bg"></div><div class="cell-bg"></div></div>
+            <div class="grid-row"><div class="cell-bg"></div><div class="cell-bg"></div><div class="cell-bg"></div><div class="cell-bg"></div></div>
+        </div>
+        <div class="tile-container" id="tileContainer"></div>
+    </div>
+
+    <div class="instructions">
+        <strong>How to play:</strong> Use your <strong>arrow keys</strong> to move the tiles. Tiles with the same number merge into one!
+    </div>
+
+    <script>
+        const container = document.getElementById('tileContainer');
+        const scoreEl = document.getElementById('score');
+        const gameOverScreen = document.getElementById('gameOver');
+        let grid = [];
+        let score = 0;
+        let size = 4;
+
+        function setup() {
+            grid = Array(size).fill().map(() => Array(size).fill(0));
+            score = 0;
+            scoreEl.innerText = '0';
+            gameOverScreen.style.display = 'none';
+            container.innerHTML = '';
+            
+            addRandomTile();
+            addRandomTile();
+            render();
+        }
+
+        function addRandomTile() {
+            let available = [];
+            for(let r=0; r<size; r++) {
+                for(let c=0; c<size; c++) {
+                    if(grid[r][c] === 0) available.push({r,c});
+                }
+            }
+            if(available.length > 0) {
+                let spot = available[Math.floor(Math.random() * available.length)];
+                grid[spot.r][spot.c] = Math.random() > 0.9 ? 4 : 2;
+                return true;
+            }
+            return false;
+        }
+
+        function getTilePos(r, c) {
+            // Gap 15px, Size 106.25px
+            // padding 15
+            let x = 15 + c * (106.25 + 15);
+            let y = 15 + r * (106.25 + 15);
+            return {x, y};
+        }
+
+        function render() {
+            container.innerHTML = '';
+            for(let r=0; r<size; r++) {
+                for(let c=0; c<size; c++) {
+                    if(grid[r][c] > 0) {
+                        let tile = document.createElement('div');
+                        let val = grid[r][c];
+                        let {x, y} = getTilePos(r,c);
+                        tile.classList.add('tile', `tile-${val > 2048 ? 'super' : val}`);
+                        tile.innerText = val;
+                        tile.style.transform = `translate(${x}px, ${y}px)`;
+                        container.appendChild(tile);
+                    }
+                }
+            }
+        }
+
+        function slide(row) {
+            let arr = row.filter(val => val);
+            let missing = size - arr.length;
+            let zeros = Array(missing).fill(0);
+            return arr.concat(zeros);
+        }
+
+        function combine(row) {
+            for(let i=0; i<size-1; i++) {
+                if(row[i] !== 0 && row[i] === row[i+1]) {
+                    row[i] *= 2;
+                    row[i+1] = 0;
+                    score += row[i];
+                    scoreEl.innerText = score;
+                }
+            }
+            return row;
+        }
+
+        function operate(row) {
+            row = slide(row);
+            row = combine(row);
+            row = slide(row);
+            return row;
+        }
+
+        function isGameOver() {
+            for(let i=0; i<size; i++) {
+                for(let j=0; j<size; j++) {
+                    if(grid[i][j] == 0) return false;
+                    if(i !== size-1 && grid[i][j] === grid[i+1][j]) return false;
+                    if(j !== size-1 && grid[i][j] === grid[i][j+1]) return false;
+                }
+            }
+            return true;
+        }
+
+        function keyPush(e) {
+            let flipped = false;
+            let rotated = false;
+            let played = true;
+
+            let oldGrid = JSON.stringify(grid);
+
+            if(e.key === 'ArrowLeft') {
+                for(let i=0; i<size; i++) {
+                    grid[i] = operate(grid[i]);
+                }
+            } else if(e.key === 'ArrowRight') {
+                for(let i=0; i<size; i++) {
+                    grid[i] = grid[i].reverse();
+                    grid[i] = operate(grid[i]);
+                    grid[i] = grid[i].reverse();
+                }
+            } else if(e.key === 'ArrowUp') {
+                // transposing
+                let newGrid = Array(size).fill().map(() => Array(size).fill(0));
+                for(let i=0; i<size; i++) for(let j=0; j<size; j++) newGrid[i][j] = grid[j][i];
+                grid = newGrid;
+
+                for(let i=0; i<size; i++) grid[i] = operate(grid[i]);
+
+                // untranspose
+                newGrid = Array(size).fill().map(() => Array(size).fill(0));
+                for(let i=0; i<size; i++) for(let j=0; j<size; j++) newGrid[i][j] = grid[j][i];
+                grid = newGrid;
+
+            } else if(e.key === 'ArrowDown') {
+                // transposing
+                let newGrid = Array(size).fill().map(() => Array(size).fill(0));
+                for(let i=0; i<size; i++) for(let j=0; j<size; j++) newGrid[i][j] = grid[j][i];
+                grid = newGrid;
+
+                for(let i=0; i<size; i++) {
+                    grid[i] = grid[i].reverse();
+                    grid[i] = operate(grid[i]);
+                    grid[i] = grid[i].reverse();
+                }
+
+                // untranspose
+                newGrid = Array(size).fill().map(() => Array(size).fill(0));
+                for(let i=0; i<size; i++) for(let j=0; j<size; j++) newGrid[i][j] = grid[j][i];
+                grid = newGrid;
+            } else {
+                played = false;
+            }
+
+            if(played) {
+                if(JSON.stringify(grid) !== oldGrid) {
+                    addRandomTile();
+                    render();
+                    if(isGameOver()) gameOverScreen.style.display = 'flex';
+                }
+            }
+        }
+
+        document.addEventListener('keydown', keyPush);
+        setup();
+
+    </script>
+</body>
+</html>

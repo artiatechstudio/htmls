@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Pong Arcade</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #050505;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            color: #fff;
+            font-family: 'Orbitron', sans-serif;
+            overflow: hidden;
+        }
+
+        #gameContainer {
+            position: relative;
+            box-shadow: 0 0 50px rgba(0, 255, 136, 0.2);
+            border: 2px solid #333;
+            border-radius: 4px;
+        }
+
+        canvas {
+            background: #000;
+            display: block;
+        }
+
+        .score-board {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 100px;
+            font-size: 3rem;
+            font-weight: 700;
+            z-index: 10;
+            pointer-events: none;
+            text-shadow: 0 0 10px currentColor;
+        }
+
+        .player-score { color: #00ff88; }
+        .ai-score { color: #ff0055; }
+
+        .controls-hint {
+            margin-top: 1rem;
+            color: #666;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            opacity: 1;
+            transition: opacity 0.3s;
+        }
+
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        button {
+            background: transparent;
+            color: #00ff88;
+            border: 2px solid #00ff88;
+            padding: 1rem 3rem;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.4);
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #00ff88;
+            color: #000;
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.8);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="gameContainer">
+        <div class="score-board">
+            <span class="player-score" id="pScore">0</span>
+            <span class="ai-score" id="aScore">0</span>
+        </div>
+        <div class="overlay" id="startScreen">
+            <h1 style="font-size: 3rem; margin-bottom: 2rem; text-shadow: 0 0 20px #00ff88;">NEON PONG</h1>
+            <button onclick="startGame()">Start Game</button>
+        </div>
+        <canvas id="pongCanvas" width="800" height="500"></canvas>
+    </div>
+
+    <div class="controls-hint">Use Mouse to Move Paddle</div>
+
+    <script>
+        const canvas = document.getElementById('pongCanvas');
+        const ctx = canvas.getContext('2d');
+        const pScoreEl = document.getElementById('pScore');
+        const aScoreEl = document.getElementById('aScore');
+        const startScreen = document.getElementById('startScreen');
+
+        // Game Objects
+        const ball = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            radius: 8,
+            speed: 7,
+            dx: 5,
+            dy: 5,
+            color: '#fff'
+        };
+
+        const paddleHeight = 80;
+        const paddleWidth = 10;
+        
+        const player = {
+            x: 0,
+            y: (canvas.height - paddleHeight) / 2,
+            width: paddleWidth,
+            height: paddleHeight,
+            color: '#00ff88',
+            score: 0
+        };
+
+        const computer = {
+            x: canvas.width - paddleWidth,
+            y: (canvas.height - paddleHeight) / 2,
+            width: paddleWidth,
+            height: paddleHeight,
+            color: '#ff0055',
+            score: 0
+        };
+
+        const net = {
+            x: (canvas.width - 2) / 2,
+            y: 0,
+            width: 2,
+            height: 10,
+            color: '#333'
+        };
+
+        let gameRunning = false;
+        let animationId;
+
+        function drawRect(x, y, w, h, color) {
+            ctx.fillStyle = color;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = color;
+            ctx.fillRect(x, y, w, h);
+            ctx.shadowBlur = 0;
+        }
+
+        function drawArc(x, y, r, color) {
+            ctx.fillStyle = color;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = color;
+            ctx.beginPath();
+            ctx.arc(x, y, r, 0, Math.PI * 2, false);
+            ctx.closePath();
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+
+        function drawNet() {
+            for (let i = 0; i <= canvas.height; i += 20) {
+                drawRect(net.x, net.y + i, net.width, net.height, net.color);
+            }
+        }
+
+        function draw() {
+            // clear canvas
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            drawNet();
+            drawRect(player.x, player.y, player.width, player.height, player.color);
+            drawRect(computer.x, computer.y, computer.width, computer.height, computer.color);
+            drawArc(ball.x, ball.y, ball.radius, ball.color);
+        }
+
+        function resetBall() {
+            ball.x = canvas.width / 2;
+            ball.y = canvas.height / 2;
+            ball.speed = 7;
+            ball.dx = -ball.dx;
+        }
+
+        function update() {
+            ball.x += ball.dx;
+            ball.y += ball.dy;
+
+            // Wall collision (top/bottom)
+            if (ball.y + ball.radius > canvas.height || ball.y - ball.radius < 0) {
+                ball.dy = -ball.dy;
+                // Add subtle speed increase
+                // ball.speed += 0.1;
+            }
+
+            // Paddle collision
+            let playerOrComputer = (ball.x < canvas.width / 2) ? player : computer;
+            
+            if (collision(ball, playerOrComputer)) {
+                // Ball hits paddle
+                let collidePoint = (ball.y - (playerOrComputer.y + playerOrComputer.height / 2));
+                collidePoint = collidePoint / (playerOrComputer.height / 2);
+
+                let angleRad = (Math.PI / 4) * collidePoint;
+
+                let direction = (ball.x < canvas.width / 2) ? 1 : -1;
+                
+                ball.dx = direction * ball.speed * Math.cos(angleRad);
+                ball.dy = ball.speed * Math.sin(angleRad);
+                
+                ball.speed += 0.5; // Difficulty curve
+                if(ball.speed > 15) ball.speed = 15;
+            }
+
+            // Score update
+            if (ball.x - ball.radius < 0) {
+                computer.score++;
+                aScoreEl.innerText = computer.score;
+                resetBall();
+            } else if (ball.x + ball.radius > canvas.width) {
+                player.score++;
+                pScoreEl.innerText = player.score;
+                resetBall();
+            }
+
+            // Computer AI
+            // Simple tracking with lerp for imperfection
+            let computerLevel = 0.1; 
+            computer.y += (ball.y - (computer.y + computer.height / 2)) * computerLevel;
+            
+            // Constrain computer paddle
+            if(computer.y < 0) computer.y = 0;
+            if(computer.y + computer.height > canvas.height) computer.y = canvas.height - computer.height;
+        }
+
+        function collision(b, p) {
+            p.top = p.y;
+            p.bottom = p.y + p.height;
+            p.left = p.x;
+            p.right = p.x + p.width;
+
+            b.top = b.y - b.radius;
+            b.bottom = b.y + b.radius;
+            b.left = b.x - b.radius;
+            b.right = b.x + b.radius;
+
+            return b.right > p.left && b.bottom > p.top && b.left < p.right && b.top < p.bottom;
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            if (gameRunning) animationId = requestAnimationFrame(gameLoop);
+        }
+
+        // Mouse Move Listener
+        canvas.addEventListener('mousemove', (e) => {
+            let rect = canvas.getBoundingClientRect();
+            player.y = e.clientY - rect.top - player.height / 2;
+            
+            // Constrain player paddle
+            if(player.y < 0) player.y = 0;
+            if(player.y + player.height > canvas.height) player.y = canvas.height - player.height;
+        });
+
+        function startGame() {
+            if (!gameRunning) {
+                startScreen.classList.add('hidden');
+                gameRunning = true;
+                gameLoop();
+            }
+        }
+
+        // Initial draw
+        draw();
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>حساب العمر والتحويل للهجري بتفصيل دقيق</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --glass-bg: rgba(255, 255, 255, 0.95);
+            --text-color: #2d3748;
+            --accent-color: #764ba2;
+            --secondary-accent: #3182ce;
+            --success-color: #48bb78;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Tajawal', sans-serif;
+        }
+
+        body {
+            background: var(--primary-gradient);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: var(--text-color);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            perspective: 1000px;
+        }
+
+        .main-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+            text-align: center;
+        }
+
+        h1 {
+            color: var(--accent-color);
+            margin-bottom: 5px;
+            font-size: 2rem;
+            font-weight: 800;
+        }
+
+        p.subtitle {
+            color: #718096;
+            margin-bottom: 30px;
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+            text-align: right;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 500;
+            color: #4a5568;
+        }
+
+        input[type="date"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            font-family: 'Tajawal', sans-serif;
+            background: #f7fafc;
+        }
+
+        input[type="date"]:focus {
+            border-color: var(--accent-color);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(118, 75, 162, 0.2);
+        }
+
+        button {
+            width: 100%;
+            max-width: 300px;
+            padding: 15px;
+            background: var(--primary-gradient);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.2rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(118, 75, 162, 0.3);
+        }
+
+        .spinner {
+            display: none;
+            margin: 20px auto;
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(118, 75, 162, 0.1);
+            border-left-color: var(--accent-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .results-grid {
+            display: none;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 30px;
+            text-align: right;
+        }
+
+        .results-grid.show {
+            display: grid;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @media (max-width: 600px) {
+            .results-grid {
+                grid-template-columns: 1fr;
+            }
+            h1 { font-size: 1.5rem; }
+        }
+
+        .result-column {
+            background: rgba(255,255,255,0.7);
+            border-radius: 15px;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+        }
+
+        .column-header {
+            padding: 15px;
+            color: white;
+            font-weight: 700;
+            font-size: 1.1rem;
+            text-align: center;
+        }
+
+        .gregorian-header { background: #3182ce; }
+        .hijri-header { background: #764ba2; }
+
+        .column-body {
+            padding: 20px;
+        }
+
+        .info-item {
+            margin-bottom: 20px;
+            border-bottom: 1px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+
+        .info-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .info-label {
+            font-size: 0.85rem;
+            color: #718096;
+            margin-bottom: 5px;
+        }
+
+        .info-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #2d3748;
+        }
+
+        .highlight {
+            color: var(--accent-color);
+        }
+
+        .gregorian-text { color: #2c5282; }
+        .hijri-text { color: #553c9a; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="main-card">
+            <h1>ملف عمرك الشخصي</h1>
+            <p class="subtitle">حساب دقيق للعمر بالميلادي والهجري مع تفاصيل يوم الميلاد</p>
+            
+            <div class="input-group">
+                <label for="birthdate">حدد تاريخ ميلادك:</label>
+                <input type="date" id="birthdate" required>
+            </div>
+
+            <button onclick="calculateProfile()" id="calcBtn">تحليل البيانات</button>
+            <div class="spinner" id="spinner"></div>
+
+            <div class="results-grid" id="results">
+                
+                <!-- Gregorian Column -->
+                <div class="result-column">
+                    <div class="column-header gregorian-header">
+                        التقويم الميلادي (الشمسي)
+                    </div>
+                    <div class="column-body">
+                        <div class="info-item">
+                            <div class="info-label">تاريخ الميلاد</div>
+                            <div class="info-value gregorian-text" id="g-dob">--</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">يوم الميلاد</div>
+                            <div class="info-value" id="g-weekday">--</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">عمرك الآن</div>
+                            <div class="info-value gregorian-text" id="g-age">--</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hijri Column -->
+                <div class="result-column">
+                    <div class="column-header hijri-header">
+                        التقويم الهجري (القمري)
+                    </div>
+                    <div class="column-body">
+                        <div class="info-item">
+                            <div class="info-label">يوافق تاريخ</div>
+                            <div class="info-value hijri-text" id="h-dob">--</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">اليوم بالهجري</div>
+                            <div class="info-value" id="h-weekday">--</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">عمرك الآن</div>
+                            <div class="info-value hijri-text" id="h-age">--</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Helper function for age calculation
+        function calculateDateDiff(y1, m1, d1, y2, m2, d2, isHijri = false) {
+            let year = y2 - y1;
+            let month = m2 - m1;
+            let day = d2 - d1;
+
+            if (day < 0) {
+                month--;
+                // Approximation for Hijri, Standard for Gregorian
+                day += isHijri ? 30 : new Date(y2, m2, 0).getDate(); 
+            }
+            if (month < 0) {
+                year--;
+                month += 12;
+            }
+            return { year, month, day };
+        }
+
+        async function calculateProfile() {
+            const dateInput = document.getElementById('birthdate').value;
+            const btn = document.getElementById('calcBtn');
+            const spinner = document.getElementById('spinner');
+            const results = document.getElementById('results');
+
+            if (!dateInput) {
+                alert('الرجاء اختيار تاريخ الميلاد أولاً');
+                return;
+            }
+
+            btn.disabled = true;
+            spinner.style.display = 'block';
+            results.classList.remove('show');
+
+            try {
+                // 1. Prepare Dates
+                const birthDate = new Date(dateInput);
+                const todayDate = new Date();
+                
+                // Format for API (DD-MM-YYYY)
+                const formatDate = (date) => {
+                    const d = String(date.getDate()).padStart(2, '0');
+                    const m = String(date.getMonth() + 1).padStart(2, '0');
+                    const y = date.getFullYear();
+                    return `${d}-${m}-${y}`;
+                };
+
+                // 2. Fetch Data (Parallel Requests for Speed)
+                // Need: 
+                // A) Birth Date -> Hijri
+                // B) Today Date -> Hijri (for accurate Hijri age calculation)
+                const p1 = fetch(`https://api.aladhan.com/v1/gToH?date=${formatDate(birthDate)}`).then(r => r.json());
+                const p2 = fetch(`https://api.aladhan.com/v1/gToH?date=${formatDate(todayDate)}`).then(r => r.json());
+
+                const [birthData, currentData] = await Promise.all([p1, p2]);
+
+                if (birthData.code !== 200 || currentData.code !== 200) {
+                    throw new Error('API Error');
+                }
+
+                const hBirth = birthData.data.hijri;
+                const hCurrent = currentData.data.hijri;
+                const gWeekday = birthData.data.gregorian.weekday.en; // API gives English weekday for Gregorian
+
+                // Map English weekday to Arabic if needed, or rely on Hijri weekday which is usually same day name in Arabic
+                const weekdayAr = hBirth.weekday.ar;
+
+                // 3. Calculate Gregorian Age
+                const gAge = calculateDateDiff(
+                    birthDate.getFullYear(), birthDate.getMonth(), birthDate.getDate(),
+                    todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate()
+                );
+
+                // 4. Calculate Hijri Age
+                // Parsing API strings to numbers
+                const hBirthY = parseInt(hBirth.year);
+                const hBirthM = hBirth.month.number; 
+                const hBirthD = parseInt(hBirth.day);
+                
+                const hCurrY = parseInt(hCurrent.year);
+                const hCurrM = hCurrent.month.number;
+                const hCurrD = parseInt(hCurrent.day);
+
+                const hAge = calculateDateDiff(hBirthY, hBirthM, hBirthD, hCurrY, hCurrM, hCurrD, true);
+
+                // 5. Update UI
+                
+                // Gregorian Data
+                document.getElementById('g-dob').innerHTML = `${birthDate.getDate()} / ${birthDate.getMonth() + 1} / ${birthDate.getFullYear()}`;
+                
+                // For day name, we can use standard JS or the API's info
+                const arDays = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+                document.getElementById('g-weekday').textContent = arDays[birthDate.getDay()];
+                document.getElementById('g-age').textContent = `${gAge.year} سنة، ${gAge.month} شهر، ${gAge.day} يوم`;
+
+                // Hijri Data
+                document.getElementById('h-dob').textContent = `${hBirth.day} ${hBirth.month.ar} ${hBirth.year}`;
+                document.getElementById('h-weekday').textContent = weekdayAr;
+                document.getElementById('h-age').textContent = `${hAge.year} سنة، ${hAge.month} شهر، ${hAge.day} يوم`;
+
+                results.classList.add('show');
+
+            } catch (error) {
+                console.error(error);
+                alert('حدث خطأ في جلب البيانات، تأكد من اتصال الإنترنت وحاول مرة أخرى');
+            } finally {
+                btn.disabled = false;
+                spinner.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

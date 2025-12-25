@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>حاسبة مؤشر كتلة الجسم (BMI)</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #00b894;
+            --secondary: #0984e3;
+            --dark: #2d3436;
+            --light: #dfe6e9;
+            --danger: #d63031;
+            --warning: #fdcb6e;
+            --success: #00b894;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Cairo', 'Poppins', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #81ecec 0%, #74b9ff 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: var(--dark);
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 2.5rem;
+            border-radius: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            width: 100%;
+            max-width: 500px;
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 2rem;
+            color: var(--secondary);
+            font-weight: 700;
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #636e72;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e1e1e1;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        input:focus {
+            border-color: var(--secondary);
+            box-shadow: 0 0 0 3px rgba(9, 132, 227, 0.1);
+        }
+
+        .unit {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #b2bec3;
+            font-weight: 600;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            background: var(--secondary);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.2rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 1rem;
+        }
+
+        button:hover {
+            background: #0870c0;
+            transform: scale(1.02);
+        }
+
+        #result {
+            margin-top: 2rem;
+            text-align: center;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: none;
+        }
+
+        #result.show {
+            opacity: 1;
+            transform: translateY(0);
+            display: block;
+        }
+
+        .bmi-value {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(45deg, var(--secondary), var(--primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .bmi-category {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            padding: 5px 15px;
+            border-radius: 50px;
+            display: inline-block;
+            color: white;
+        }
+
+        /* Gauge Bar */
+        .gauge-container {
+            height: 10px;
+            background: #eee;
+            border-radius: 5px;
+            position: relative;
+            margin-top: 20px;
+            overflow: hidden;
+        }
+
+        .gauge-fill {
+            height: 100%;
+            width: 0%;
+            transition: width 1s ease-out, background-color 0.5s ease;
+            border-radius: 5px;
+        }
+
+        .info-text {
+            color: #636e72;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>حاسبة مؤشر كتلة الجسم</h1>
+    
+    <div class="input-group">
+        <label for="weight">الوزن</label>
+        <div class="input-wrapper">
+            <input type="number" id="weight" placeholder="مثلاً: 70">
+            <span class="unit">كجم</span>
+        </div>
+    </div>
+
+    <div class="input-group">
+        <label for="height">الطول</label>
+        <div class="input-wrapper">
+            <input type="number" id="height" placeholder="مثلاً: 170">
+            <span class="unit">سم</span>
+        </div>
+    </div>
+
+    <button onclick="calculateBMI()">احسب النتيجة</button>
+
+    <div id="result">
+        <div class="bmi-value" id="bmiValue">0.0</div>
+        <div class="bmi-category" id="bmiCategory">--</div>
+        
+        <div class="gauge-container">
+            <div class="gauge-fill" id="gaugeBar"></div>
+        </div>
+        
+        <p class="info-text" id="bmiInfo">
+            مؤشر كتلة الجسم هو مقياس يستخدم لتحديد ما إذا كان وزنك صحيًا بالنسبة لطولك.
+        </p>
+    </div>
+</div>
+
+<script>
+    function calculateBMI() {
+        const weight = parseFloat(document.getElementById('weight').value);
+        const heightCm = parseFloat(document.getElementById('height').value);
+
+        if (!weight || !heightCm || weight <= 0 || heightCm <= 0) {
+            alert('الرجاء إدخال قيم صحيحة للوزن والطول.');
+            return;
+        }
+
+        const heightM = heightCm / 100;
+        const bmi = (weight / (heightM * heightM)).toFixed(1);
+
+        displayResult(bmi);
+    }
+
+    function displayResult(bmi) {
+        const resultDiv = document.getElementById('result');
+        const bmiValueDiv = document.getElementById('bmiValue');
+        const bmiCategoryDiv = document.getElementById('bmiCategory');
+        const gaugeBar = document.getElementById('gaugeBar');
+        const infoText = document.getElementById('bmiInfo');
+
+        let category = '';
+        let color = '';
+        let width = '';
+        let info = '';
+
+        if (bmi < 18.5) {
+            category = 'نحافة';
+            color = '#3498db'; // Blue
+            width = '20%';
+            info = 'وزنك أقل من المعدل الطبيعي. قد تحتاج إلى مراجعة نظامك الغذائي لزيادة الوزن بطريقة صحية.';
+        } else if (bmi >= 18.5 && bmi < 25) {
+            category = 'وزن طبيعي';
+            color = '#00b894'; // Green
+            width = '40%';
+            info = 'ممتاز! وزنك مثالي وصحي. حافظ على نمط حياتك الحالي.';
+        } else if (bmi >= 25 && bmi < 30) {
+            category = 'وزن زائد';
+            color = '#fdcb6e'; // Yellow/Orange
+            width = '60%';
+            info = 'وزنك أعلى قليلاً من المعدل الطبيعي. التمارين الرياضية وتنزيم الأكل قد يساعدك.';
+        } else {
+            category = 'سمنة';
+            color = '#d63031'; // Red
+            width = '90%';
+            info = 'أنت في مرحلة السمنة. ينصح باستشارة أخصائي تغذية للحفاظ على صحتك.';
+        }
+
+        bmiValueDiv.innerText = bmi;
+        bmiCategoryDiv.innerText = category;
+        bmiCategoryDiv.style.backgroundColor = color;
+        gaugeBar.style.width = '0%'; // Reset for animation
+        gaugeBar.style.backgroundColor = color;
+        infoText.innerText = info;
+
+        resultDiv.classList.add('show');
+        
+        // Trigger animation
+        setTimeout(() => {
+            gaugeBar.style.width = width;
+        }, 100);
+    }
+</script>
+
+</body>
+</html>

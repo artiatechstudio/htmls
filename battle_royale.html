@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Battle Royale IO</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #222;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: white;
+            user-select: none;
+        }
+        #gameCanvas {
+            display: block;
+        }
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        .hud-element {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 8px;
+            pointer-events: auto;
+        }
+        #health-bar-container {
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 300px;
+            height: 20px;
+            background: #444;
+            border: 2px solid #000;
+        }
+        #health-bar {
+            width: 100%;
+            height: 100%;
+            background: #0f0;
+            transition: width 0.2s;
+        }
+        #ammo-display {
+            bottom: 20px;
+            right: 20px;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        #minimap {
+            top: 20px;
+            left: 20px;
+            width: 150px;
+            height: 150px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 2px solid #555;
+            border-radius: 50%; /* Circular minimap */
+            overflow: hidden;
+        }
+        #killfeed {
+            top: 20px;
+            right: 20px;
+            text-align: right;
+            font-size: 14px;
+        }
+        #game-over-screen {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            pointer-events: auto;
+        }
+        #game-over-screen h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+            color: #ffcc00;
+        }
+        button {
+            padding: 15px 30px;
+            font-size: 20px;
+            cursor: pointer;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #45a049;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Main Menu -->
+    <div id="main-menu">
+        <h1>BATTLE ROYALE IO</h1>
+        <p>Survive the zone. Be the last one standing.</p>
+        <div class="controls-info">
+            <p><strong>WASD</strong> to Move</p>
+            <p><strong>Mouse</strong> to Aim</p>
+            <p><strong>Left Click</strong> to Shoot</p>
+        </div>
+        <button onclick="startGame()">PLAY NOW</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer" style="display: none;"> <!-- Hidden initially -->
+        <div id="minimap">
+            <canvas id="minimapCanvas" width="150" height="150"></canvas>
+        </div>
+        <div id="killfeed"></div>
+        <center>
+             <div id="message-display" style="color: #f1c40f; font-size: 24px; font-weight: bold; text-shadow: 2px 2px 0 #000; margin-top: 50px;"></div>
+        </center>
+        <div id="health-bar-container" class="hud-element">
+            <div id="health-bar"></div>
+        </div>
+        <div id="ammo-display" class="hud-element">
+            <span id="weapon-name">Fists</span> <span id="ammo-count">∞</span>
+        </div>
+    </div>
+
+    <div id="game-over-screen">
+        <h1 id="end-message">Winner Winner Chicken Dinner!</h1>
+        <p id="stats-display">Kills: 0</p>
+        <button onclick="location.reload()">Return to Menu</button>
+    </div>
+
+<script>
+/**
+ * BATTLE ROYALE GAME ENGINE (PC V2)
+ */
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const minimapCanvas = document.getElementById('minimapCanvas');
+const minimapCtx = minimapCanvas.getContext('2d');
+
+let SCREEN_WIDTH = window.innerWidth;
+let SCREEN_HEIGHT = window.innerHeight;
+
+canvas.width = SCREEN_WIDTH;
+canvas.height = SCREEN_HEIGHT;
+
+// World Settings
+const WORLD_SIZE = 3000;
+const TILE_SIZE = 100; 
+
+// Game State
+let gameState = 'menu'; // menu, playing, gameover
+let lastTime = 0;
+let camera = { x: 0, y: 0 };
+let gameStartTime = 0;
+
+// Inputs
+const keys = { w: false, a: false, s: false, d: false, f: false, r: false };
+const mouse = { x: 0, y: 0, worldX: 0, worldY: 0, leftDown: false };
+
+// Assets
+const COLORS = {
+    grass: '#7ec850',
+    grid: '#73b947',
+    player: '#f1c40f',
+    playerOutline: '#d35400',
+    bot: '#e74c3c',
+    bullet: '#2c3e50',
+    tree: '#27ae60',
+    rock: '#95a5a6',
+    crate: '#d4ac0d',
+    zoneBorder: '#c0392b',
+    shield: 'rgba(52, 152, 219, 0.5)'
+};
+
+// --- CLASSES ---
+
+class GameObject {
+    constructor(x, y, radius) {
+        this.x = x;
+        this.y = y;
+        this.radius = radius;
+        this.markedForDeletion = false;
+    }
+    draw(ctx) {}
+    update(dt) {}
+}
+
+class Player extends GameObject {
+    constructor(x, y, isBot = false) {
+        super(x, y, 25);
+        this.isBot = isBot;
+        this.color = isBot ? COLORS.bot : COLORS.player;
+        this.speed = 300;
+        this.health = 100;
+        this.maxHealth = 100;
+        this.angle = 0;
+        
+        // Weapon
+        this.weapon = {
+            type: 'pistol',
+            damage: 20,
+            fireRate: 0.4,
+            cooldown: 0,
+            ammo: 999,
+            range: 600,
+            speed: 1000
+        };
+
+        // Bot Logic
+        this.target = null;
+        this.moveDir = { x: 0, y: 0 };
+        this.changeDirTimer = 0;
+
+        // Invulnerability
+        this.invulnerable = true; // Shield at spawn
+        this.invulnerableTimer = 3.0; // 3 seconds
+    }
+
+    update(dt) {
+        if (this.health <= 0) return;
+
+        // Weapon Cooldown
+        if (this.weapon.cooldown > 0) this.weapon.cooldown -= dt;
+        
+        // Invulnerability Timer
+        if (this.invulnerable) {
+            this.invulnerableTimer -= dt;
+            if (this.invulnerableTimer <= 0) {
+                this.invulnerable = false;
+                if (!this.isBot) showMessage("SHIELD OFF!");
+            }
+        }
+
+        let dx = 0, dy = 0;
+
+        if (!this.isBot) {
+            // Player Input
+            if (keys.w) dy = -1;
+            if (keys.s) dy = 1;
+            if (keys.a) dx = -1;
+            if (keys.d) dx = 1;
+
+            // Normalize
+            if (dx !== 0 || dy !== 0) {
+                const len = Math.sqrt(dx*dx + dy*dy);
+                dx /= len;
+                dy /= len;
+            }
+
+            // Aiming
+            this.angle = Math.atan2(mouse.worldY - this.y, mouse.worldX - this.x);
+
+            // Shooting
+            if (mouse.leftDown && this.weapon.cooldown <= 0) this.shoot();
+
+        } else {
+            // Bot Logic
+            this.updateBot(dt);
+            dx = this.moveDir.x;
+            dy = this.moveDir.y;
+        }
+
+        // Apply Movement with Collision (Sliding)
+        this.moveWithCollision(dx, dy, dt);
+
+        // Zone Damage
+        const distToCenter = Math.hypot(this.x - worldParams.x, this.y - worldParams.y);
+        if (distToCenter > zone.radius) {
+            this.health -= 5 * dt;
+        }
+
+        // Bounds
+        this.x = Math.max(this.radius, Math.min(WORLD_SIZE - this.radius, this.x));
+        this.y = Math.max(this.radius, Math.min(WORLD_SIZE - this.radius, this.y));
+    }
+
+    moveWithCollision(dx, dy, dt) {
+        const step = this.speed * dt;
+        
+        // Try X axis
+        let nextX = this.x + dx * step;
+        if (!this.checkCollision(nextX, this.y)) {
+            this.x = nextX;
+        }
+
+        // Try Y axis
+        let nextY = this.y + dy * step;
+        if (!this.checkCollision(this.x, nextY)) {
+            this.y = nextY;
+        }
+    }
+
+    checkCollision(x, y) {
+        for (let obj of obstacles) {
+            const dist = Math.hypot(x - obj.x, y - obj.y);
+            // Simple circle collision
+            if (dist < this.radius + obj.radius) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    updateBot(dt) {
+        if (this.target && (this.target.health <= 0 || this.target.markedForDeletion)) this.target = null;
+
+        if (!this.target) {
+            let closest = null, minDist = 600;
+            for (let other of entities) {
+                if (other instanceof Player && other !== this && other.health > 0) {
+                    let d = Math.hypot(other.x - this.x, other.y - this.y);
+                    if (d < minDist) { minDist = d; closest = other; }
+                }
+            }
+            this.target = closest;
+        }
+
+        if (this.target) {
+            this.angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
+            let dist = Math.hypot(this.target.x - this.x, this.target.y - this.y);
+            
+            this.moveDir = { x: 0, y: 0 };
+            if (dist > 300) {
+                this.moveDir = { x: Math.cos(this.angle), y: Math.sin(this.angle) };
+            } else if (dist < 150) {
+                this.moveDir = { x: -Math.cos(this.angle), y: -Math.sin(this.angle) };
+            }
+
+            if (this.weapon.cooldown <= 0 && dist < this.weapon.range) this.shoot();
+        } else {
+            this.changeDirTimer -= dt;
+            if (this.changeDirTimer <= 0) {
+                let angle = Math.random() * 6.28;
+                this.moveDir = { x: Math.cos(angle), y: Math.sin(angle) };
+                this.changeDirTimer = 1 + Math.random() * 2;
+            }
+        }
+    }
+
+    shoot() {
+        this.weapon.cooldown = this.weapon.fireRate;
+        const bx = this.x + Math.cos(this.angle) * (this.radius + 10);
+        const by = this.y + Math.sin(this.angle) * (this.radius + 10);
+        bullets.push(new Bullet(bx, by, this.angle, this.weapon.speed, this.weapon.damage, this));
+    }
+
+    draw(ctx) {
+        if (this.health <= 0) return;
+
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+
+        // Body
+        ctx.beginPath();
+        ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = this.color;
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#000';
+        ctx.stroke();
+
+        // Hands
+        ctx.fillStyle = this.color;
+        ctx.beginPath(); ctx.arc(15, 15, 10, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.arc(15, -15, 10, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+        
+        // Gun
+        ctx.fillStyle = '#333';
+        ctx.fillRect(10, -5, 40, 10);
+
+        // Shield Effect
+        if (this.invulnerable) {
+            ctx.beginPath();
+            ctx.arc(0, 0, this.radius + 5, 0, Math.PI*2);
+            ctx.strokeStyle = '#3498db';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.fillStyle = COLORS.shield;
+            ctx.fill();
+        }
+
+        ctx.restore();
+
+        if (this.isBot || this.health < this.maxHealth) {
+             ctx.fillStyle = 'red';
+             ctx.fillRect(this.x - 20, this.y - 40, 40, 5);
+             ctx.fillStyle = '#0f0';
+             ctx.fillRect(this.x - 20, this.y - 40, 40 * (this.health / this.maxHealth), 5);
+        }
+    }
+}
+
+class Bullet extends GameObject {
+    constructor(x, y, angle, speed, damage, owner) {
+        super(x, y, 5);
+        this.angle = angle;
+        this.speed = speed;
+        this.damage = damage;
+        this.owner = owner;
+        this.maxDist = 1000;
+        this.distTraveled = 0;
+    }
+
+    update(dt) {
+        const moveDist = this.speed * dt;
+        this.x += Math.cos(this.angle) * moveDist;
+        this.y += Math.sin(this.angle) * moveDist;
+        this.distTraveled += moveDist;
+
+        if (this.distTraveled >= this.maxDist) { this.markedForDeletion = true; return; }
+
+        // Players collision
+        for (let entity of entities) {
+            if (entity instanceof Player && entity !== this.owner && entity.health > 0) {
+                // Ignore if invulnerable
+                if (entity.invulnerable) continue;
+
+                const dist = Math.hypot(this.x - entity.x, this.y - entity.y);
+                if (dist < entity.radius + this.radius) {
+                    entity.health -= this.damage;
+                    this.markedForDeletion = true;
+                    if (entity.health <= 0) {
+                         addLog(`${this.owner.isBot ? 'Bot' : 'You'} killed ${entity.isBot ? 'Bot' : 'Player'}!`);
+                         if (!entity.isBot) triggerGameOver('You Died!');
+                         else {
+                             if (!this.owner.isBot) { kills++; updateHUD(); }
+                             checkWinCondition();
+                         }
+                    }
+                    return;
+                }
+            }
+        }
+        
+        // Obstacle collision
+        for (let obj of obstacles) {
+             const dist = Math.hypot(this.x - obj.x, this.y - obj.y);
+             if (dist < obj.radius) {
+                 this.markedForDeletion = true;
+                 return;
+             }
+        }
+    }
+
+    draw(ctx) {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = COLORS.bullet;
+        ctx.fill();
+    }
+}
+
+class Obstacle extends GameObject {
+    constructor(x, y, radius, type) {
+        super(x, y, radius);
+        this.type = type;
+    }
+    draw(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        
+        if (this.type === 'tree') {
+            ctx.fillStyle = COLORS.tree;
+            ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#1e8449';
+            ctx.beginPath(); ctx.arc(0, 0, this.radius * 0.7, 0, Math.PI * 2); ctx.fill();
+        } else if (this.type === 'rock') {
+            ctx.fillStyle = COLORS.rock;
+            ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fill();
+        } else if (this.type === 'crate') {
+            ctx.fillStyle = COLORS.crate;
+            ctx.fillRect(-this.radius, -this.radius, this.radius*2, this.radius*2);
+            ctx.strokeStyle = '#b9770e'; ctx.lineWidth = 4;
+            ctx.strokeRect(-this.radius, -this.radius, this.radius*2, this.radius*2);
+            ctx.beginPath(); ctx.moveTo(-this.radius, -this.radius); ctx.lineTo(this.radius, this.radius);
+            ctx.moveTo(this.radius, -this.radius); ctx.lineTo(-this.radius, this.radius); ctx.stroke();
+        }
+        ctx.restore();
+    }
+}
+
+// --- GLOBALS ---
+let player;
+let entities = [];
+let bullets = [];
+let obstacles = [];
+let zone = { radius: WORLD_SIZE * 0.7 };
+const worldParams = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2 };
+let kills = 0;
+
+// --- HELPERS ---
+
+function checkSpawnCollision(x, y, radius, extraBuffer = 0) {
+    // Check against obstacles
+    for (const obs of obstacles) {
+        const dist = Math.hypot(x - obs.x, y - obs.y);
+        if (dist < obs.radius + radius + extraBuffer) return true;
+    }
+    // Check against existing entities (to avoid spawning on top of a bot)
+    for (const ent of entities) {
+        const dist = Math.hypot(x - ent.x, y - ent.y);
+        if (dist < ent.radius + radius + extraBuffer) return true;
+    }
+    return false;
+}
+
+function getSafeSpawnPosition(radius, avoidPlayer = false, playerX = 0, playerY = 0) {
+    let maxAttempts = 100;
+    for (let i = 0; i < maxAttempts; i++) {
+        let x = radius + Math.random() * (WORLD_SIZE - radius * 2);
+        let y = radius + Math.random() * (WORLD_SIZE - radius * 2);
+        
+        if (checkSpawnCollision(x, y, radius)) continue;
+
+        if (avoidPlayer) {
+            const dist = Math.hypot(x - playerX, y - playerY);
+            if (dist < 600) continue; // Keep bots 600px away from player initially
+        }
+
+        return {x, y};
+    }
+    return {x: WORLD_SIZE/2, y: WORLD_SIZE/2}; // Fallback
+}
+
+
+function startGame() {
+    document.getElementById('main-menu').style.display = 'none';
+    document.getElementById('ui-layer').style.display = 'block';
+    
+    entities = [];
+    bullets = [];
+    obstacles = [];
+    kills = 0;
+    gameState = 'playing';
+    gameStartTime = performance.now();
+    document.getElementById('game-over-screen').style.display = 'none';
+
+    // 1. Generate Map (Trees, Rocks)
+    for (let i = 0; i < 50; i++) {
+        obstacles.push(new Obstacle(Math.random() * WORLD_SIZE, Math.random() * WORLD_SIZE, 40 + Math.random() * 30, 'tree'));
+    }
+    for (let i = 0; i < 30; i++) {
+        obstacles.push(new Obstacle(Math.random() * WORLD_SIZE, Math.random() * WORLD_SIZE, 30 + Math.random() * 20, 'rock'));
+    }
+    for (let i = 0; i < 20; i++) {
+         obstacles.push(new Obstacle(Math.random() * WORLD_SIZE, Math.random() * WORLD_SIZE, 35, 'crate'));
+    }
+
+    // 2. Spawn Player Safely
+    const pPos = getSafeSpawnPosition(25);
+    player = new Player(pPos.x, pPos.y);
+    entities.push(player);
+
+    showMessage("SHIELD ACTIVE: 3s");
+
+    // 3. Spawn Bots Safely (Away from player)
+    for (let i = 0; i < 10; i++) {
+        const bPos = getSafeSpawnPosition(25, true, player.x, player.y);
+        entities.push(new Player(bPos.x, bPos.y, true));
+    }
+
+    zone.radius = WORLD_SIZE * 0.8;
+    lastTime = performance.now();
+    updateHUD();
+    requestAnimationFrame(gameLoop);
+}
+
+// --- GAME LOOP ---
+
+function gameLoop(timestamp) {
+    if (gameState !== 'playing') return;
+
+    const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
+    lastTime = timestamp;
+
+    update(dt);
+    draw();
+
+    requestAnimationFrame(gameLoop);
+}
+
+function update(dt) {
+    if (zone.radius > 200) zone.radius -= 15 * dt;
+
+    entities.forEach(e => e.update(dt));
+    bullets.forEach(b => b.update(dt));
+
+    entities = entities.filter(e => e.health > 0);
+    bullets = bullets.filter(b => !b.markedForDeletion);
+
+    camera.x = Math.max(0, Math.min(WORLD_SIZE - canvas.width, player.x - canvas.width / 2));
+    camera.y = Math.max(0, Math.min(WORLD_SIZE - canvas.height, player.y - canvas.height / 2));
+
+    if (player.health <= 0) triggerGameOver("You Died!");
+    else updateHUD();
+}
+
+function draw() {
+    ctx.fillStyle = '#222';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+    ctx.translate(-camera.x, -camera.y);
+
+    // Ground
+    ctx.fillStyle = COLORS.grass; ctx.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
+    
+    // Grid
+    ctx.strokeStyle = COLORS.grid; ctx.lineWidth = 2; ctx.beginPath();
+    for (let x = 0; x <= WORLD_SIZE; x += TILE_SIZE) { ctx.moveTo(x, 0); ctx.lineTo(x, WORLD_SIZE); }
+    for (let y = 0; y <= WORLD_SIZE; y += TILE_SIZE) { ctx.moveTo(0, y); ctx.lineTo(WORLD_SIZE, y); }
+    ctx.stroke();
+
+    // Zone
+    ctx.beginPath(); ctx.arc(worldParams.x, worldParams.y, zone.radius, 0, Math.PI * 2);
+    ctx.strokeStyle = COLORS.zoneBorder; ctx.lineWidth = 10; ctx.stroke();
+
+    bullets.forEach(b => b.draw(ctx));
+    obstacles.forEach(o => o.draw(ctx)); // Draw trees AFTER bullets so bullets fly under leaves? Or trees block view? Simple layer: Floor -> Bullets -> Obstacles -> Entities
+    entities.forEach(e => e.draw(ctx));
+
+    ctx.restore();
+
+    drawMinimap();
+}
+
+function drawMinimap() {
+    minimapCtx.fillStyle = '#0f0'; minimapCtx.fillRect(0,0, 150, 150);
+    const scale = 150 / WORLD_SIZE;
+
+    minimapCtx.strokeStyle = 'red'; minimapCtx.lineWidth = 2;
+    minimapCtx.beginPath(); minimapCtx.arc(worldParams.x * scale, worldParams.y * scale, zone.radius * scale, 0, Math.PI * 2);
+    minimapCtx.stroke();
+
+    // Player
+    minimapCtx.fillStyle = 'white'; minimapCtx.beginPath();
+    minimapCtx.arc(player.x * scale, player.y * scale, 3, 0, Math.PI * 2); minimapCtx.fill();
+
+    // Enemies
+    minimapCtx.fillStyle = 'red';
+    for (let e of entities) {
+        if (e !== player && e.health > 0) {
+            minimapCtx.beginPath(); minimapCtx.arc(e.x * scale, e.y * scale, 2, 0, Math.PI * 2); minimapCtx.fill();
+        }
+    }
+}
+
+// --- HUD & UI ---
+
+function updateHUD() {
+    document.getElementById('health-bar').style.width = player.health + '%';
+    document.getElementById('ammo-count').innerText = player.weapon.ammo > 900 ? '∞' : player.weapon.ammo;
+}
+
+function showMessage(msg) {
+    const el = document.getElementById('message-display');
+    el.innerText = msg;
+    setTimeout(() => { if (el.innerText === msg) el.innerText = ''; }, 2000);
+}
+
+const killfeed = document.getElementById('killfeed');
+function addLog(msg) {
+    const div = document.createElement('div');
+    div.innerText = msg;
+    div.style.color = '#fff';
+    div.style.textShadow = '1px 1px 2px black';
+    div.style.marginBottom = '5px';
+    killfeed.appendChild(div);
+    setTimeout(() => div.remove(), 3000);
+}
+
+function triggerGameOver(msg) {
+    gameState = 'gameover';
+    document.getElementById('ui-layer').style.display = 'none';
+    document.getElementById('game-over-screen').style.display = 'flex';
+    document.getElementById('end-message').innerText = msg;
+    document.getElementById('stats-display').innerText = `Kills: ${kills}`;
+}
+
+function checkWinCondition() {
+    if (entities.filter(e => e.health > 0).length === 1 && player.health > 0) {
+        triggerGameOver("WINNER WINNER CHICKEN DINNER!");
+    }
+}
+
+// --- INPUTS ---
+window.addEventListener('keydown', e => {
+    if (e.key === 'w' || e.key === 'W') keys.w = true;
+    if (e.key === 'a' || e.key === 'A') keys.a = true;
+    if (e.key === 's' || e.key === 'S') keys.s = true;
+    if (e.key === 'd' || e.key === 'D') keys.d = true;
+});
+window.addEventListener('keyup', e => {
+    if (e.key === 'w' || e.key === 'W') keys.w = false;
+    if (e.key === 'a' || e.key === 'A') keys.a = false;
+    if (e.key === 's' || e.key === 'S') keys.s = false;
+    if (e.key === 'd' || e.key === 'D') keys.d = false;
+});
+window.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = e.clientX - rect.left;
+    mouse.y = e.clientY - rect.top;
+    mouse.worldX = mouse.x + camera.x;
+    mouse.worldY = mouse.y + camera.y;
+});
+window.addEventListener('mousedown', () => mouse.leftDown = true);
+window.addEventListener('mouseup', () => mouse.leftDown = false);
+window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+});
+
+// STYLES FOR MENU
+const style = document.createElement('style');
+style.innerHTML = `
+#main-menu {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: linear-gradient(135deg, #2c3e50, #000);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    z-index: 999;
+}
+#main-menu h1 { font-size: 64px; margin-bottom: 0; color: #f1c40f; text-shadow: 4px 4px 0 #000; }
+#main-menu p { font-size: 24px; color: #bbb; margin-bottom: 40px; }
+.controls-info {
+    background: rgba(0,0,0,0.5);
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 40px;
+    text-align: center;
+}
+.controls-info p { margin: 10px 0; font-size: 18px; color: #ddd; }
+#main-menu button {
+    padding: 20px 50px;
+    font-size: 32px;
+    font-weight: bold;
+    background: #e74c3c;
+    box-shadow: 0 5px 0 #c0392b;
+    transition: transform 0.1s;
+}
+#main-menu button:active { transform: translateY(5px); box-shadow: none; }
+`;
+document.head.appendChild(style);
+
+</script>
+</body>
+</html>

@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nokia Snake - Web Edition</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        :root {
+            --nokia-bg: #c7f0d8;
+            --nokia-dark: #43523d;
+            --nokia-light: #43523d; /* Actually the pixels are dark */
+        }
+
+        body {
+            background-color: #222;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: 'VT323', monospace;
+            color: var(--nokia-dark);
+            overflow: hidden;
+        }
+
+        #phone-case {
+            background-color: #333;
+            padding: 40px 20px 60px 20px;
+            border-radius: 30px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5), inset 0 0 10px rgba(255,255,255,0.1);
+            border: 5px solid #111;
+            position: relative;
+        }
+
+        #screen-container {
+            background-color: var(--nokia-bg);
+            width: 400px;
+            height: 300px;
+            border: 4px solid var(--nokia-dark);
+            border-radius: 5px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        /* Scanline effect */
+        #screen-container::after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
+            background-size: 100% 4px;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+        }
+
+        .ui-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--nokia-bg);
+            z-index: 20;
+            text-align: center;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin: 0 0 10px 0;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .menu-group {
+            margin-bottom: 15px;
+            width: 80%;
+        }
+
+        .label {
+            font-size: 1.2rem;
+            margin-bottom: 5px;
+            display: block;
+            font-weight: bold;
+            border-bottom: 2px solid var(--nokia-dark);
+        }
+
+        .btn-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+        }
+
+        button {
+            background: transparent;
+            border: 2px solid var(--nokia-dark);
+            color: var(--nokia-dark);
+            font-family: 'VT323', monospace;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 2px 5px;
+            transition: all 0.1s;
+        }
+
+        button:hover, button.active {
+            background: var(--nokia-dark);
+            color: var(--nokia-bg);
+        }
+
+        .mode-select {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .start-btn {
+            font-size: 1.5rem;
+            padding: 5px 20px;
+            margin-top: 10px;
+            border-width: 3px;
+        }
+
+        .high-score-display {
+            font-size: 1rem;
+            margin-top: 5px;
+        }
+
+        #game-ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 5px;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.5rem;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        /* Phone branding */
+        .nokia-logo {
+            text-align: center;
+            color: #aaa;
+            font-family: sans-serif;
+            font-weight: bold;
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+            letter-spacing: 1px;
+        }
+        /* Touch Buttons Layout */
+        #touch-controls {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            user-select: none;
+        }
+
+        .mid-row {
+            display: flex;
+            gap: 20px;
+            margin-top: 10px;
+        }
+
+        .tbtn {
+            width: 60px;
+            height: 60px;
+            font-size: 2rem;
+            font-family: 'VT323', monospace;
+            background-color: #222;
+            border: 3px solid #555;
+            color: #eee;
+            border-radius: 10px;
+            box-shadow: 0 0 5px #000 inset;
+            cursor: pointer;
+        }
+
+        .tbtn:active {
+            background-color: #555;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="phone-case">
+        <div class="nokia-logo">NOKIA</div>
+        <div id="screen-container">
+            <canvas id="gameCanvas" width="400" height="300"></canvas>
+            
+            <div id="game-ui" class="hidden">
+                <span id="score-display">Score: 0</span>
+                <span id="level-display">Lvl: 1</span>
+            </div>
+
+            <!-- MAIN MENU -->
+            <div id="menu-screen" class="ui-screen">
+                <h1>SNAKE</h1>
+                
+                <div class="menu-group">
+                    <span class="label">LEVEL (SPEED)</span>
+                    <div class="btn-grid" id="level-buttons">
+                        <!-- Generated by JS -->
+                    </div>
+                    <div class="high-score-display" id="menu-high-score">High Score: 0</div>
+                </div>
+
+                <div class="menu-group">
+                    <span class="label">MODE</span>
+                    <div class="mode-select">
+                        <button id="mode-classic" class="active" onclick="setMode('CLASSIC')">CLASSIC</button>
+                        <button id="mode-free" onclick="setMode('FREE')">FREE</button>
+                    </div>
+                </div>
+
+                <button class="start-btn" onclick="startGame()">START GAME</button>
+            </div>
+
+            <!-- GAME OVER -->
+            <div id="game-over-screen" class="ui-screen hidden">
+                <h1>GAME OVER</h1>
+                <div style="font-size: 1.5rem; margin-bottom: 20px;">
+                    Score: <span id="final-score">0</span>
+                </div>
+                <button class="start-btn" onclick="showMenu()">MAIN MENU</button>
+                <button class="start-btn" onclick="startGame()">RETRY</button>
+            </div>
+        </div>
+        <div id="touch-controls">
+            <button class="tbtn" id="btn-up">▲</button>
+            <div class="mid-row">
+                <button class="tbtn" id="btn-left">◄</button>
+                <button class="tbtn" id="btn-down">▼</button>
+                <button class="tbtn" id="btn-right">►</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIG ---
+        const CANVAS_WIDTH = 400;
+        const CANVAS_HEIGHT = 300;
+        const GRID_SIZE = 20;
+        const COLS = CANVAS_WIDTH / GRID_SIZE;
+        const ROWS = CANVAS_HEIGHT / GRID_SIZE;
+        
+        // Colors
+        const COLOR_BG = '#c7f0d8';
+        const COLOR_DARK = '#43523d';
+
+        // State
+        let canvas, ctx;
+        let gameLoopId;
+        let lastTime = 0;
+        let dropCounter = 0;
+        let dropInterval = 200; // ms per frame (speed)
+
+        let snake = [];
+        let direction = { x: 1, y: 0 }; // Current movement
+        let nextDirection = { x: 1, y: 0 }; // Buffered input
+        let food = null;
+        let score = 0;
+        let currentLevel = 1;
+        let currentMode = 'CLASSIC'; // 'CLASSIC' or 'FREE'
+        let isPaused = false;
+
+        // High Scores: { "CLASSIC_1": 100, "FREE_8": 500, ... }
+        let highScores = JSON.parse(localStorage.getItem('snakeHighScores')) || {};
+
+        // --- INIT ---
+        window.onload = () => {
+            canvas = document.getElementById('gameCanvas');
+            ctx = canvas.getContext('2d');
+            
+            // Generate Level Buttons
+            const levelGrid = document.getElementById('level-buttons');
+            for(let i=1; i<=8; i++) {
+                const btn = document.createElement('button');
+                btn.innerText = i;
+                btn.onclick = () => setLevel(i);
+                if(i === 1) btn.classList.add('active');
+                btn.id = `lvl-btn-${i}`;
+                levelGrid.appendChild(btn);
+            }
+
+            updateMenuHighScore();
+            
+            // Input Handling
+            document.addEventListener('keydown', handleInput);
+        };
+
+        // --- MENU LOGIC ---
+        function setLevel(lvl) {
+            currentLevel = lvl;
+            // Update UI
+            for(let i=1; i<=8; i++) {
+                document.getElementById(`lvl-btn-${i}`).classList.remove('active');
+            }
+            document.getElementById(`lvl-btn-${lvl}`).classList.add('active');
+            updateMenuHighScore();
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.getElementById('mode-classic').classList.toggle('active', mode === 'CLASSIC');
+            document.getElementById('mode-free').classList.toggle('active', mode === 'FREE');
+            updateMenuHighScore();
+        }
+
+        function updateMenuHighScore() {
+            const key = `${currentMode}_${currentLevel}`;
+            const hs = highScores[key] || 0;
+            document.getElementById('menu-high-score').innerText = `High Score: ${hs}`;
+        }
+
+        function showMenu() {
+            stopGame();
+            document.getElementById('menu-screen').classList.remove('hidden');
+            document.getElementById('game-over-screen').classList.add('hidden');
+            document.getElementById('game-ui').classList.add('hidden');
+            updateMenuHighScore();
+        }
+
+        // --- GAME LOGIC ---
+        function startGame() {
+            // Hide Screens
+            document.getElementById('menu-screen').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.add('hidden');
+            document.getElementById('game-ui').classList.remove('hidden');
+
+            // Reset State
+            snake = [
+                { x: 5, y: 10 },
+                { x: 4, y: 10 },
+                { x: 3, y: 10 }
+            ];
+            direction = { x: 1, y: 0 };
+            nextDirection = { x: 1, y: 0 };
+            score = 0;
+            
+            // Calculate Speed based on Level (1 = Slowest, 8 = Fastest)
+            // Level 1: 200ms, Level 8: 50ms
+            dropInterval = 200 - ((currentLevel - 1) * 20); 
+
+            spawnFood();
+            updateScoreUI();
+
+            if (gameLoopId) cancelAnimationFrame(gameLoopId);
+            lastTime = 0;
+            dropCounter = 0;
+            isPaused = false;
+            gameLoopId = requestAnimationFrame(update);
+        }
+
+        function stopGame() {
+            if (gameLoopId) cancelAnimationFrame(gameLoopId);
+        }
+
+        function spawnFood() {
+            let valid = false;
+            while (!valid) {
+                food = {
+                    x: Math.floor(Math.random() * COLS),
+                    y: Math.floor(Math.random() * ROWS)
+                };
+                // Check if on snake
+                valid = !snake.some(segment => segment.x === food.x && segment.y === food.y);
+            }
+        }
+
+        function handleInput(e) {
+            // Prevent default scrolling for arrow keys
+            if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) > -1) {
+                e.preventDefault();
+            }
+
+            // We check against 'direction' (current moving dir) AND 'nextDirection' 
+            // to prevent rapid double key presses causing self-collision.
+            // Actually, best practice is to check against the LAST PROCESSED direction.
+            // Since 'direction' is updated in the game loop, we should check against that.
+            // BUT if user presses Up then Left quickly, 'direction' hasn't changed yet.
+            // So we need to check against 'nextDirection' if we allow buffering, 
+            // OR just accept the last valid input per frame.
+            
+            // Simple fix: Only allow one turn per frame? 
+            // Better: Check if the new direction is opposite to the *current actual* direction.
+            // AND ensure we don't overwrite a pending turn that hasn't executed yet.
+            
+            // Let's use a simple approach: 
+            // If we are moving X, we can only switch to Y.
+            // We use 'direction' as the source of truth for "where we came from".
+            
+            // Wait, to fix the "turn on yourself" bug properly:
+            // If I am going Right, I cannot go Left.
+            // If I press Up, nextDirection becomes Up.
+            // If I press Left immediately after, I should NOT be able to override Up with Left 
+            // IF Up hasn't happened yet.
+            // So we really need a queue, or just lock input until update.
+            // For simplicity in this retro game, let's just use the 'direction' variable 
+            // but update it only in the loop. We'll store input in 'nextDirection'.
+            // But we need to make sure 'nextDirection' isn't opposite to 'direction'.
+            
+            // Actually, if I press Up then Left quickly:
+            // 1. Moving Right.
+            // 2. Press Up. nextDirection = Up. (Valid, not opposite to Right).
+            // 3. Press Left. nextDirection = Left. (Valid, not opposite to Right... wait, it IS opposite to Right).
+            // So we need to check against the *last queued* direction?
+            
+            // Let's just use the standard "last processed direction" logic.
+            // We will use a variable 'lastProcessedDir' updated in the loop.
+            
+            const goingUp = lastProcessedDir.y === -1;
+            const goingDown = lastProcessedDir.y === 1;
+            const goingLeft = lastProcessedDir.x === -1;
+            const goingRight = lastProcessedDir.x === 1;
+
+            if (e.code === 'ArrowUp' && !goingDown) {
+                nextDirection = { x: 0, y: -1 };
+            } else if (e.code === 'ArrowDown' && !goingUp) {
+                nextDirection = { x: 0, y: 1 };
+            } else if (e.code === 'ArrowLeft' && !goingRight) {
+                nextDirection = { x: -1, y: 0 };
+            } else if (e.code === 'ArrowRight' && !goingLeft) {
+                nextDirection = { x: 1, y: 0 };
+            }
+        }
+
+        let lastProcessedDir = { x: 1, y: 0 };
+
+        function update(time) {
+            const deltaTime = time - lastTime;
+            lastTime = time;
+            dropCounter += deltaTime;
+
+            if (dropCounter > dropInterval) {
+                // UPDATE TICK
+                dropCounter = 0;
+                
+                // 1. Update Direction
+                // Prevent 180 turns based on the *currently executing* direction
+                // If nextDirection is opposite to lastProcessedDir, ignore it? 
+                // We already filtered inputs in handleInput based on lastProcessedDir.
+                // However, handleInput needs to know the *latest* accepted input to chain them?
+                // For this simple version, let's just take the latest valid input.
+                // To fix the "fast keypress" bug properly:
+                // We only accept ONE input per frame.
+                // But we already have that structure: 'nextDirection' is a single variable.
+                // The issue is if I press Up (valid) then Left (invalid relative to Right, but valid relative to Up).
+                // If I am going Right. Press Up. nextDir = Up. Press Left. nextDir = Left.
+                // Frame update: Move Left. CRASH into body.
+                // FIX: In handleInput, check against 'lastProcessedDir' is NOT enough if we allow overwriting nextDirection.
+                // We need to check against 'nextDirection' if it has changed from 'lastProcessedDir'.
+                
+                // Actually, the simplest robust fix for "Snake turn bug":
+                // Only process the FIRST key press per frame? No, that feels laggy.
+                // Process the LAST key press? That causes the bug.
+                // We need a queue.
+                
+                // Let's stick to: nextDirection is committed to direction only here.
+                // And we only allow changing nextDirection if it's orthogonal to the CURRENT direction.
+                // But the user said "I made a problem... cannot turn on yourself".
+                // So I will implement a queue.
+                
+                if (inputQueue.length > 0) {
+                    const next = inputQueue.shift();
+                    // Check validity against CURRENT moving direction
+                    if (next.x !== -direction.x && next.y !== -direction.y) {
+                        direction = next;
+                    }
+                }
+                
+                lastProcessedDir = { ...direction };
+
+                // 2. Move Head
+                const head = { x: snake[0].x + direction.x, y: snake[0].y + direction.y };
+
+                // 3. Collision Logic
+                let wallCollision = false;
+                
+                if (currentMode === 'FREE') {
+                    // Wrap around
+                    if (head.x < 0) head.x = COLS - 1;
+                    if (head.x >= COLS) head.x = 0;
+                    if (head.y < 0) head.y = ROWS - 1;
+                    if (head.y >= ROWS) head.y = 0;
+                } else {
+                    // Classic Die
+                    if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
+                        wallCollision = true;
+                    }
+                }
+
+                // Self Collision
+                // Note: We don't check the tail because it will move away, unless we ate food.
+                // But simpler to just check all body parts except the very last one if we are not growing.
+                // Standard way: Check all current segments.
+                if (wallCollision || snake.some(s => s.x === head.x && s.y === head.y)) {
+                    gameOver();
+                    return;
+                }
+
+                snake.unshift(head);
+
+                // 4. Eat Food
+                if (head.x === food.x && head.y === food.y) {
+                    // Score: Level * 10. Harder levels = more points.
+                    score += currentLevel * 10;
+                    updateScoreUI();
+                    spawnFood();
+                    // Don't pop tail -> Grow
+                } else {
+                    snake.pop();
+                }
+            }
+
+            draw();
+            gameLoopId = requestAnimationFrame(update);
+        }
+
+        // Input Queue to fix the "turn on yourself" bug perfectly
+        let inputQueue = [];
+        document.addEventListener('keydown', (e) => {
+            let newDir = null;
+
+            // الأسهم
+            if (e.code === 'ArrowUp') newDir = { x: 0, y: -1 };
+            else if (e.code === 'ArrowDown') newDir = { x: 0, y: 1 };
+            else if (e.code === 'ArrowLeft') newDir = { x: -1, y: 0 };
+            else if (e.code === 'ArrowRight') newDir = { x: 1, y: 0 };
+
+            // WASD
+            else if (e.code === 'KeyW') newDir = { x: 0, y: -1 };
+            else if (e.code === 'KeyS') newDir = { x: 0, y: 1 };
+            else if (e.code === 'KeyA') newDir = { x: -1, y: 0 };
+            else if (e.code === 'KeyD') newDir = { x: 1, y: 0 };
+
+            if (newDir) {
+                const lastPlanned = inputQueue.length > 0 ? inputQueue[inputQueue.length - 1] : direction;
+
+                // منع الانعطاف العكسي
+                if (newDir.x !== -lastPlanned.x || newDir.y !== -lastPlanned.y) {
+                    if (inputQueue.length < 2) {
+                        inputQueue.push(newDir);
+                    }
+                }
+            }
+        });
+
+        function draw() {
+            // Clear
+            ctx.fillStyle = COLOR_BG;
+            ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+            // Draw Snake
+            ctx.fillStyle = COLOR_DARK;
+            snake.forEach(segment => {
+                ctx.fillRect(segment.x * GRID_SIZE, segment.y * GRID_SIZE, GRID_SIZE, GRID_SIZE);
+                // Inner pixel gap for style
+                ctx.fillStyle = COLOR_BG;
+                ctx.fillRect(segment.x * GRID_SIZE + 2, segment.y * GRID_SIZE + 2, GRID_SIZE - 4, GRID_SIZE - 4);
+                ctx.fillStyle = COLOR_DARK;
+                ctx.fillRect(segment.x * GRID_SIZE + 4, segment.y * GRID_SIZE + 4, GRID_SIZE - 8, GRID_SIZE - 8);
+            });
+
+            // Draw Food
+            ctx.fillStyle = COLOR_DARK;
+            ctx.fillRect(food.x * GRID_SIZE, food.y * GRID_SIZE, GRID_SIZE, GRID_SIZE);
+            // Food style (filled with cross?)
+            ctx.fillStyle = COLOR_BG;
+            ctx.fillRect(food.x * GRID_SIZE + 6, food.y * GRID_SIZE + 6, GRID_SIZE - 12, GRID_SIZE - 12);
+            ctx.fillStyle = COLOR_DARK;
+            ctx.fillRect(food.x * GRID_SIZE + 8, food.y * GRID_SIZE + 8, GRID_SIZE - 16, GRID_SIZE - 16);
+        }
+
+        function updateScoreUI() {
+            document.getElementById('score-display').innerText = `Score: ${score}`;
+            document.getElementById('level-display').innerText = `Lvl: ${currentLevel}`;
+        }
+
+        function gameOver() {
+            stopGame();
+            
+            // Save High Score
+            const key = `${currentMode}_${currentLevel}`;
+            const currentHigh = highScores[key] || 0;
+            if (score > currentHigh) {
+                highScores[key] = score;
+                localStorage.setItem('snakeHighScores', JSON.stringify(highScores));
+            }
+
+            document.getElementById('final-score').innerText = score;
+            document.getElementById('game-over-screen').classList.remove('hidden');
+            document.getElementById('game-ui').classList.add('hidden');
+        }
+        // function to add direction to queue safely
+    function queueDirection(newDir) {
+        const lastPlanned = inputQueue.length > 0 ? inputQueue[inputQueue.length - 1] : direction;
+
+        if (newDir.x !== -lastPlanned.x || newDir.y !== -lastPlanned.y) {
+            if (inputQueue.length < 2) {
+                inputQueue.push(newDir);
+            }
+        }
+    }
+
+    // Touch button events
+    document.getElementById("btn-up").addEventListener("click", () => {
+        queueDirection({ x: 0, y: -1 });
+    });
+
+    document.getElementById("btn-down").addEventListener("click", () => {
+        queueDirection({ x: 0, y: 1 });
+    });
+
+    document.getElementById("btn-left").addEventListener("click", () => {
+        queueDirection({ x: -1, y: 0 });
+    });
+
+    document.getElementById("btn-right").addEventListener("click", () => {
+        queueDirection({ x: 1, y: 0 });
+    });
+    </script>
+</body>
+</html>
